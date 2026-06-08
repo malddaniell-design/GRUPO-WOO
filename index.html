@@ -191,7 +191,7 @@ header{background:var(--navy3);padding:0 28px;height:72px;display:flex;align-ite
 .hab-tag button{background:none;border:none;color:var(--gold);cursor:pointer;font-size:.9rem;line-height:1;padding:0;}
 .pago-ov{display:none;position:fixed;inset:0;background:rgba(7,18,33,.97);z-index:2500;flex-direction:column;align-items:center;justify-content:center;padding:24px;}
 .pago-ov.on{display:flex;}
-.pago-card{background:var(--white);border-radius:4px;padding:44px;text-align:center;max-width:400px;width:100%);}
+.pago-card{background:var(--white);border-radius:4px;padding:44px;text-align:center;max-width:400px;width:100%;}
 .pago-ttl{font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--navy);font-weight:600;margin-bottom:8px;}
 .pago-sub{font-size:.82rem;color:var(--gray);margin-bottom:28px;line-height:1.7;}
 .pago-btns{display:flex;flex-direction:column;gap:10px;}
@@ -363,7 +363,7 @@ footer{background:var(--navy3);padding:52px 24px 40px;text-align:center;flex-shr
         <span class="btn btn-gold" style="font-size:.74rem;padding:10px 22px;">Continuar</span>
       </div>
       <div class="bc" onclick="go('scan')">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="#C5A059" style="margin:0 auto"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H6V4h12v16z"/><circle cx="12" cy="14" r="5" fill="none" stroke="#C5A059" stroke-width="1.5"/></svg>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="#C5A059" style="margin:0 auto"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm0 18H6V4h12v16z"/><circle cx="12" cy="14" r="5" fill="none" stroke="#C5A059" stroke-width="1.5"/></svg>
         <div class="bc-ttl">Lavanderia</div>
         <div class="bc-tx">Solicita tu CFDI por Blue WOO.</div>
         <span class="btn btn-gold" style="font-size:.74rem;padding:10px 22px;">Continuar</span>
@@ -680,10 +680,10 @@ function startScan(tipo) {
     var prompt = tipo === 'lav'
       ? 'Analyze this Mexican laundry receipt image. Return ONLY JSON no markdown no backticks: {"bluewoo":false,"fecha":null,"iva":false,"folio":null,"monto":null,"pago":null}. Rules: bluewoo true if BlueWoo or Blue Woo or BLUE WOO appears anywhere. fecha extract exactly as shown on ticket. iva true if letters IVA appear anywhere even small print. folio is ticket number or null. monto is number next to Total or null. pago: TDD=TarjetaDebito TDC=TarjetaCredito Efectivo=Efectivo Transferencia=Transferencia VentaCredito=VentaCredito else null.'
       : 'Analyze this Mexican hotel receipt image. Return ONLY JSON no markdown no backticks: {"bluewoo":false,"folio":null,"monto":null,"pago":null}. Rules: bluewoo true if BlueWoo or Blue Woo or BLUE WOO or Woo Rooms appears anywhere. folio is ticket or receipt number or null. monto is number next to Total or null. pago: TDD=TarjetaDebito TDC=TarjetaCredito Efectivo=Efectivo Transferencia=Transferencia VentaCredito=VentaCredito else null.';
-    fetch('https://openrouter.ai/api/v1/chat/completions', {
+    fetch(SCRIPTS_URL, {
       method: 'POST',
-      headers: {'Authorization': 'Bearer ' + ORKEY, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://grupowoo.com', 'X-Title': 'GrupoWOO'},
-      body: JSON.stringify({model: 'nvidia/nemotron-nano-12b-v2-vl:free', messages: [{role: 'user', content: [{type: 'text', text: prompt},{type: 'image_url', image_url: {url: 'data:' + mime + ';base64,' + b64}}]}]})
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tipo: tipo, image: b64, mime: mime})
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -693,8 +693,17 @@ function startScan(tipo) {
         ov.classList.remove('on');
         for (var i = 0; i < sids.length; i++) { document.getElementById(sids[i]).classList.remove('done','cur'); }
         var result;
-        try { var txt = data.choices[0].message.content; txt = txt.replace(/```json/gi,'').replace(/```/g,'').trim(); result = JSON.parse(txt); }
-        catch(e) { var st = document.getElementById(tipo === 'lav' ? 'aiSt' : 'aiStH'); st.className = 'ai-status fail'; st.textContent = 'La IA no pudo leer el ticket. Intenta con una foto mas clara.'; return; }
+        try {
+          var txt = JSON.stringify(data);
+          var jsonMatch = txt.match(/\{[\s\S]*\}/);
+          if (jsonMatch) { txt = jsonMatch[0]; }
+          result = JSON.parse(txt);
+        } catch(e) {
+          var st = document.getElementById(tipo === 'lav' ? 'aiSt' : 'aiStH');
+          st.className = 'ai-status fail';
+          st.textContent = 'La IA no pudo leer el ticket. Intenta con una foto mas clara.';
+          return;
+        }
         if (tipo === 'lav') { processLav(result); } else { processHotel(result); }
       }, 500);
     })
